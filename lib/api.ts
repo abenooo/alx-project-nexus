@@ -51,7 +51,12 @@ class ApiClient {
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`
         try {
           const errorText = await response.text()
-          console.error('API Error Response:', errorText)
+          // Use console.warn for auth errors (401/403) to reduce noise
+          if (response.status === 401 || response.status === 403) {
+            console.warn('API Auth Response:', errorText)
+          } else {
+            console.error('API Error Response:', errorText)
+          }
           if (errorText) {
             errorMessage = errorText
           }

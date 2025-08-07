@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { MapPin, Clock, DollarSign, Building, Heart } from 'lucide-react'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { apiClient } from '@/lib/api'
 
 interface Job {
@@ -28,6 +28,7 @@ interface JobCardProps {
 export function JobCard({ job }: JobCardProps) {
   const [isSaved, setIsSaved] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [formattedDate, setFormattedDate] = useState('')
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -40,6 +41,10 @@ export function JobCard({ job }: JobCardProps) {
     if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
     return `${Math.ceil(diffDays / 30)} months ago`
   }
+
+  useEffect(() => {
+    setFormattedDate(formatDate(job.posted_at))
+  }, [job.posted_at])
 
   const handleSaveJob = async () => {
     // Check if user is authenticated
@@ -86,7 +91,7 @@ export function JobCard({ job }: JobCardProps) {
               <MapPin className="h-4 w-4 mr-1" />
               <span>{job.location}</span>
               <Clock className="h-4 w-4 ml-4 mr-1" />
-              <span>{formatDate(job.posted_at)}</span>
+              <span>{formattedDate}</span>
             </div>
           </div>
           <Button
