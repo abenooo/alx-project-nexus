@@ -1,0 +1,14 @@
+node_modules
+.env
+.env.local
+.env.example
+.env.test
+.env.production
+.env.development
+.env.staging
+.env.qa
+.env.ci
+.next
+yarn.lock
+package-lock.json
+yarn-error.log
