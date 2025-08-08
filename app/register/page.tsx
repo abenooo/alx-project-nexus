@@ -13,9 +13,8 @@ import { apiClient } from '@/lib/api' // Import the new API client
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
+    name: '',
     email: '',
-    first_name: '',
-    last_name: '',
     password: '',
     confirm_password: ''
   })
@@ -24,32 +23,42 @@ export default function RegisterPage() {
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
+    e.preventDefault();
+    setLoading(true);
+    setError('');
 
     if (formData.password !== formData.confirm_password) {
-      setError('Passwords do not match')
-      setLoading(false)
-      return
+      setError('Passwords do not match');
+      setLoading(false);
+      return;
     }
 
     try {
-      const response = await apiClient.register(formData)
-      
+      const { name, email, password } = formData;
+      const response = await apiClient.register({ name, email, password });
+
       if (response.error) {
-        setError(response.error)
-        return
+        setError(response.error);
+        setLoading(false);
+        return;
       }
 
-      router.push('/login?message=Registration successful. Please sign in.')
+      const responseData = response.data;
+      if (responseData?.user?.token) {
+        // Automatically log the user in
+        localStorage.setItem('token', responseData.user.token);
+        localStorage.setItem('user', JSON.stringify(responseData.user));
+        window.location.href = '/'; // Redirect to home and reload to update auth state
+      } else {
+        // Fallback to login page if token is not in response
+        router.push('/login?message=Registration successful. Please sign in.');
+      }
     } catch (error) {
-      setError('Network error. Please try again.')
-      console.error('Registration error:', error)
-    } finally {
-      setLoading(false)
+      setError('Network error. Please try again.');
+      console.error('Registration error:', error);
+      setLoading(false);
     }
-  }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -83,29 +92,16 @@ export default function RegisterPage() {
                 </Alert>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="first_name">First Name</Label>
-                  <Input
-                    id="first_name"
-                    name="first_name"
-                    required
-                    value={formData.first_name}
-                    onChange={handleChange}
-                    placeholder="John"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="last_name">Last Name</Label>
-                  <Input
-                    id="last_name"
-                    name="last_name"
-                    required
-                    value={formData.last_name}
-                    onChange={handleChange}
-                    placeholder="Doe"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  required
+                  value={formData.name}
+                  onChange={handleChange}
+                  placeholder="John Doe"
+                />
               </div>
 
               <div className="space-y-2">
