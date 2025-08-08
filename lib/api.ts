@@ -48,6 +48,12 @@ interface SavedJob {
   saved_at?: string
 }
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
 interface UserProfile {
   id?: number
   first_name: string
@@ -76,12 +82,20 @@ class ApiClient {
 
   // Helper method to get auth headers
   private getAuthHeaders(): HeadersInit {
-    const token = this.getToken()
-    return {
+    const token = this.getToken();
+    console.log('Current auth token:', token ? 'Token exists' : 'No token found');
+    
+    const headers: HeadersInit = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` }),
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
+
+    console.log('Request headers:', headers);
+    return headers;
   }
 
   // Helper method to handle API responses
@@ -125,32 +139,30 @@ class ApiClient {
   }
 
   // Auth endpoints
-  async login(credentials: { email: string; password: string }): Promise<ApiResponse> {
+  async login(credentials: { email: string; password: string }): Promise<ApiResponse<{ user: User & { token: string } }>> {
     try {
-      const response = await fetch(`${this.baseUrl}/users/login/`, {
+      const response = await fetch(`${this.baseUrl}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
         body: JSON.stringify(credentials),
-      })
+      });
 
-      return this.handleResponse(response)
+      return this.handleResponse(response);
     } catch (error) {
-      return { error: 'Network error occurred' }
+      return { error: 'Network error occurred' };
     }
   }
 
   async register(userData: {
-    email: string
-    first_name: string
-    last_name: string
-    password: string
-    confirm_password: string
-  }): Promise<ApiResponse> {
+    name: string;
+    email: string;
+    password: string;
+  }): Promise<ApiResponse<{ user: User & { token: string } }>> {
     try {
-      const response = await fetch(`${this.baseUrl}/users/register/`, {
+      const response = await fetch(`${this.baseUrl}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -179,16 +191,16 @@ class ApiClient {
   }
 
   // Profile endpoints
-  async getProfile(): Promise<ApiResponse<UserProfile>> {
+  async getMe(): Promise<ApiResponse<User>> {
     try {
-      const response = await fetch(`${this.baseUrl}/users/profile/update/`, {
+      const response = await fetch(`${this.baseUrl}/auth/me`, {
         method: 'GET',
         headers: this.getAuthHeaders(),
-      })
+      });
 
-      return this.handleResponse<UserProfile>(response)
+      return this.handleResponse<User>(response);
     } catch (error) {
-      return { error: 'Network error occurred' }
+      return { error: 'Network error occurred' };
     }
   }
 
@@ -411,43 +423,141 @@ class ApiClient {
   }
 
   // Saved Jobs endpoints
-  async getSavedJobs(page: number = 1): Promise<ApiResponse<{ results: SavedJob[]; next: string | null; count: number }>> {
+  async getSavedJobs(): Promise<ApiResponse<SavedJob[]>> {
     try {
-      const response = await fetch(`${this.baseUrl}/saved-jobs/?page=${page}`, {
+      if (!this.isAuthenticated()) {
+        console.error('User is not authenticated');
+        return { error: 'User is not authenticated' };
+      }
+
+      const endpoint = `${this.baseUrl.replace(/\/$/, '')}/users/me/saved`;
+      console.log('Fetching saved jobs from:', endpoint);
+      
+      const response = await fetch(endpoint, {
         method: 'GET',
         headers: this.getAuthHeaders(),
-      })
+      });
 
-      return this.handleResponse(response)
+      console.log('Saved jobs response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error fetching saved jobs:', errorText);
+        return { 
+          error: `Failed to fetch saved jobs: ${response.status} ${response.statusText}`,
+          status: response.status 
+        };
+      }
+
+      const data: SavedJob[] = await response.json();
+      console.log('Saved jobs data:', data);
+      
+      return { 
+        data,
+        status: response.status 
+      };
     } catch (error) {
-      return { error: 'Network error occurred' }
+      console.error('Error in getSavedJobs:', error);
+      return { 
+        error: error instanceof Error ? error.message : 'Network error occurred',
+        status: 0
+      };
     }
   }
 
   async saveJob(jobId: string): Promise<ApiResponse<SavedJob>> {
     try {
-      const response = await fetch(`${this.baseUrl}/saved-jobs/create/`, {
+      console.log('Saving job with ID:', jobId);
+      console.log('Using base URL:', this.baseUrl);
+      
+      const endpoint = `${this.baseUrl.replace(/\/$/, '')}/users/me/save-job`;
+      console.log('Full endpoint:', endpoint);
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
-        headers: this.getAuthHeaders(),
-        body: JSON.stringify({ job: jobId }),
-      })
+        headers: {
+          'Content-Type': 'application/json',
+          ...this.getAuthHeaders(),
+        },
+        body: JSON.stringify({ jobId }),
+      });
 
-      return this.handleResponse<SavedJob>(response)
+      console.log('Save job response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Save job error response:', errorText);
+        return { 
+          error: `Failed to save job: ${response.status} ${response.statusText}`,
+          status: response.status 
+        };
+      }
+
+      return this.handleResponse<SavedJob>(response);
     } catch (error) {
-      return { error: 'Network error occurred' }
+      console.error('Error saving job:', error);
+      return { 
+        error: error instanceof Error ? error.message : 'Network error occurred',
+        status: 0
+      };
     }
   }
 
-  async unsaveJob(id: number): Promise<ApiResponse> {
+  async unsaveJob(jobId: string): Promise<ApiResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/saved-jobs/${id}/delete/`, {
-        method: 'DELETE',
-        headers: this.getAuthHeaders(),
-      })
+      if (!this.isAuthenticated()) {
+        console.error('User is not authenticated');
+        return { error: 'User is not authenticated' };
+      }
 
-      return this.handleResponse(response)
+      const url = `${this.baseUrl.replace(/\/$/, '')}/users/me/saved/${jobId}`;
+      console.log('Unsaving job with ID:', jobId);
+      console.log('Making request to:', url);
+      
+      const headers = {
+        'Content-Type': 'application/json',
+        ...this.getAuthHeaders()
+      };
+      console.log('Request headers:', headers);
+      
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: headers,
+      });
+
+      console.log('Unsave job response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Unsave job error response:', errorText);
+        
+        if (response.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+        }
+        
+        return { 
+          error: `Failed to unsave job: ${response.status} ${response.statusText}`,
+          status: response.status,
+          data: errorText
+        };
+      }
+
+      // The backend might return the updated list of saved jobs
+      const responseData = await response.json();
+      console.log('Unsave job successful:', responseData);
+      
+      return { 
+        data: responseData,
+        status: response.status 
+      };
     } catch (error) {
-      return { error: 'Network error occurred' }
+      console.error('Error unsaving job:', error);
+      return { 
+        error: error instanceof Error ? error.message : 'Network error occurred',
+        status: 0
+      };
     }
   }
 

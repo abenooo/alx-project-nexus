@@ -47,11 +47,11 @@ export function JobCard({ job, isSavedInitially = false, savedJobId, onUnsave }:
     try {
       if (isSaved) {
         if (currentSavedJobId) {
-          const response = await apiClient.unsaveJob(currentSavedJobId);
+          const response = await apiClient.unsaveJob(currentSavedJobId.toString());
           if (response.status === 204 || !response.error) {
             setIsSaved(false);
             if (onUnsave) {
-              onUnsave(job._id);
+              onUnsave(job._id.toString());
             }
           } else {
             console.error('Failed to unsave job:', response.error);

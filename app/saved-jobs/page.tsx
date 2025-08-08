@@ -42,7 +42,7 @@ export default function SavedJobsPage() {
       const response = await apiClient.getSavedJobs()
 
       if (response.data) {
-        const jobs = response.data.results || []
+        const jobs = response.data || []
         
         // For each saved job, we need to fetch the job details
         // In a real app, this would ideally be done by the backend API
