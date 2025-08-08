@@ -15,17 +15,13 @@ import Link from 'next/link';
 import { JobCard } from '@/components/job-card';
 import { apiClient, type SavedJob, type Job } from '@/lib/api'
 
-interface SavedJobWithDetails extends SavedJob {
-  job_details?: Job
-}
-
+// The backend returns an array of Job objects directly
 export default function SavedJobsPage() {
   const router = useRouter()
-  const [savedJobs, setSavedJobs] = useState<SavedJobWithDetails[]>([])
+  const [savedJobs, setSavedJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   
-
   useEffect(() => {
     // Check authentication
     if (!apiClient.isAuthenticated()) {
@@ -42,28 +38,9 @@ export default function SavedJobsPage() {
       const response = await apiClient.getSavedJobs()
 
       if (response.data) {
-        const jobs = response.data || []
-        
-        // For each saved job, we need to fetch the job details
-        // In a real app, this would ideally be done by the backend API
-        const jobsWithDetails = await Promise.all(
-          jobs.map(async (savedJob) => {
-            try {
-              // The API's getJob function expects a string ID, but savedJob.job is a number.
-              // This is a temporary workaround. In a real app, the API or the data model should be consistent.
-              const jobResponse = await apiClient.getJob(String(savedJob.job));
-              return {
-                ...savedJob,
-                job_details: jobResponse.data
-              }
-            } catch (error) {
-              console.error(`Error fetching details for job ${savedJob.job}:`, error)
-              return { ...savedJob, job_details: undefined }
-            }
-          })
-        )
-
-        setSavedJobs(jobsWithDetails.filter(job => job.job_details)) // Only show jobs with details
+        // The backend returns an array of Job objects directly
+        const jobs = response.data || [];
+        setSavedJobs(jobs);
       } else if (response.status === 401 || response.status === 403) {
         router.push('/login')
       } else {
@@ -146,16 +123,14 @@ export default function SavedJobsPage() {
               </Card>
             ) : (
               <div className="space-y-4">
-                {savedJobs.map((savedJob) => (
-                  savedJob.job_details && (
-                    <JobCard 
-                      key={savedJob.id} 
-                      job={savedJob.job_details} 
-                      onUnsave={() => setSavedJobs(prev => prev.filter(j => j.id !== savedJob.id))}
-                      isSavedInitially={true}
-                      savedJobId={savedJob.id}
-                    />
-                  )
+                {savedJobs.map((job) => (
+                  <JobCard 
+                    key={job._id} 
+                    job={job} 
+                    onUnsave={() => setSavedJobs(prev => prev.filter(j => j._id !== job._id))}
+                    isSavedInitially={true}
+                    savedJobId={job._id}
+                  />
                 ))}
               </div>
             )}

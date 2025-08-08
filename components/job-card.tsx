@@ -11,13 +11,13 @@ import { apiClient, Job } from '@/lib/api'
 export interface JobCardProps {
   job: Job;
   isSavedInitially?: boolean;
-  savedJobId?: number;
+  savedJobId?: string; // Changed from number to string to match job._id type
   onUnsave?: (jobId: string) => void;
 }
 
 export function JobCard({ job, isSavedInitially = false, savedJobId, onUnsave }: JobCardProps) {
   const [isSaved, setIsSaved] = useState(isSavedInitially);
-  const [currentSavedJobId, setCurrentSavedJobId] = useState(savedJobId);
+  const [currentSavedJobId, setCurrentSavedJobId] = useState<string | undefined>(savedJobId);
   const [saving, setSaving] = useState(false);
   const [formattedDate, setFormattedDate] = useState('');
 
@@ -61,7 +61,8 @@ export function JobCard({ job, isSavedInitially = false, savedJobId, onUnsave }:
         const response = await apiClient.saveJob(job._id);
         if (response.data) {
           setIsSaved(true);
-          setCurrentSavedJobId(response.data.id);
+          // Ensure the ID is converted to a string
+          setCurrentSavedJobId(response.data.id?.toString() || job._id);
         } else {
           console.error('Failed to save job:', response.error);
         }

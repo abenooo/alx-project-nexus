@@ -423,7 +423,7 @@ class ApiClient {
   }
 
   // Saved Jobs endpoints
-  async getSavedJobs(): Promise<ApiResponse<SavedJob[]>> {
+  async getSavedJobs(): Promise<ApiResponse<Job[]>> {
     try {
       if (!this.isAuthenticated()) {
         console.error('User is not authenticated');
@@ -449,7 +449,7 @@ class ApiClient {
         };
       }
 
-      const data: SavedJob[] = await response.json();
+      const data: Job[] = await response.json();
       console.log('Saved jobs data:', data);
       
       return { 
