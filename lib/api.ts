@@ -409,14 +409,18 @@ class ApiClient {
 
   async getApplications(page: number = 1): Promise<ApiResponse<{ results: JobApplication[]; next: string | null; count: number }>> {
     try {
-      const response = await fetch(`${this.baseUrl}/applications/recruiter/?page=${page}`, {
+      const response = await fetch(`${this.baseUrl}/applications/?page=${page}`, {
         method: 'GET',
         headers: this.getAuthHeaders(),
       })
 
       return this.handleResponse(response)
     } catch (error) {
-      return { error: 'Network error occurred' }
+      console.error('Error fetching applications:', error);
+      return { 
+        error: 'Network error occurred',
+        status: 0
+      }
     }
   }
 
