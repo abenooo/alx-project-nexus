@@ -26,39 +26,23 @@ export default function LoginPage() {
     setError('')
 
     try {
-      const response = await apiClient.login(formData)
-      
+      const response = await apiClient.login(formData);
+
       if (response.error) {
-        setError(response.error)
-        return
+        setError(response.error);
+        return;
       }
 
-      // The API returns data in the format: { user: {...}, token: {...} }
-      const responseData = response.data
-      
-      if (responseData?.token?.access) {
-        // Store the access token
-        localStorage.setItem('token', responseData.token.access)
-        
-        // Store the user data if available
-        if (responseData.user) {
-          localStorage.setItem('user', JSON.stringify(responseData.user))
-        } else {
-          // If no user data in response, try to fetch the profile
-          try {
-            const profileResponse = await apiClient.getProfile()
-            if (profileResponse.data) {
-              localStorage.setItem('user', JSON.stringify(profileResponse.data))
-            }
-          } catch (profileError) {
-            console.error('Error fetching user profile:', profileError)
-          }
-        }
+      const responseData = response.data;
+
+      if (responseData?.user?.token) {
+        localStorage.setItem('token', responseData.user.token);
+        localStorage.setItem('user', JSON.stringify(responseData.user));
         
         // Force a full page reload to ensure all components get the updated auth state
-        window.location.href = '/'
+        window.location.href = '/';
       } else {
-        setError('Login successful but no authentication token received')
+        setError('Login successful but no authentication token received');
       }
     } catch (error) {
       setError('Network error. Please try again.')
