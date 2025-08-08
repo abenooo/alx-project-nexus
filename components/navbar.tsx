@@ -218,12 +218,6 @@ export function Navbar() {
                     </div>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                      <Link href="/profile">
-                        <User className="mr-2 h-4 w-4" />
-                        Profile
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
                       <Link href="/saved-jobs">
                         <Heart className="mr-2 h-4 w-4" />
                         Saved Jobs
@@ -233,12 +227,6 @@ export function Navbar() {
                       <Link href="/applications">
                         <Briefcase className="mr-2 h-4 w-4" />
                         My Applications
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/settings">
-                        <Settings className="mr-2 h-4 w-4" />
-                        Settings
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
