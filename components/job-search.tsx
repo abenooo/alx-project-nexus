@@ -29,6 +29,13 @@ export function JobSearch({ onSearch }: JobSearchProps) {
     onSearch?.(filters)
   }
 
+  const handleEnterKey: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSearch()
+    }
+  }
+
   return (
     <div id="jobs" className="bg-white rounded-lg shadow-md p-6 mb-8">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -38,6 +45,7 @@ export function JobSearch({ onSearch }: JobSearchProps) {
             placeholder="Job title, keywords..."
             value={filters.keyword}
             onChange={(e) => setFilters({ ...filters, keyword: e.target.value })}
+            onKeyDown={handleEnterKey}
             className="pl-10"
           />
         </div>
@@ -48,11 +56,19 @@ export function JobSearch({ onSearch }: JobSearchProps) {
             placeholder="Location"
             value={filters.location}
             onChange={(e) => setFilters({ ...filters, location: e.target.value })}
+            onKeyDown={handleEnterKey}
             className="pl-10"
           />
         </div>
         
-        <Select value={filters.jobType} onValueChange={(value) => setFilters({ ...filters, jobType: value })}>
+        <Select
+          value={filters.jobType}
+          onValueChange={(value) => {
+            const next = { ...filters, jobType: value }
+            setFilters(next)
+            onSearch?.(next)
+          }}
+        >
           <SelectTrigger>
             <Briefcase className="h-4 w-4 mr-2" />
             <SelectValue placeholder="Job Type" />

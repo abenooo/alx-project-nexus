@@ -8,7 +8,18 @@ import { Loader2, Wifi, WifiOff, Info } from 'lucide-react'
 import { apiClient, Job } from '@/lib/api'
 import Link from 'next/link'
 
-export function JobListImproved() {
+type SearchFilters = {
+  keyword: string
+  location: string
+  jobType: string
+  category: string
+}
+
+interface JobListImprovedProps {
+  filters: SearchFilters
+}
+
+export function JobListImproved({ filters }: JobListImprovedProps) {
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -16,18 +27,37 @@ export function JobListImproved() {
   const [hasMore, setHasMore] = useState(true)
   const [isUsingFallback, setIsUsingFallback] = useState(false)
 
-  const fetchJobs = async (pageNum: number = 1) => {
+  const fetchJobs = async (pageNum: number = 1, currentFilters: SearchFilters = filters) => {
     console.log(`Fetching jobs for page ${pageNum}`)
     setLoading(true)
     setError(null)
     
     // This should never throw an error now
-    const response = await apiClient.getJobs(pageNum)
+    const response = await apiClient.getJobs(pageNum, {
+      search: currentFilters.keyword || undefined,
+    })
     
     console.log('Jobs response received:', response)
     
     if (response.data) {
-      const jobsArray = response.data.results || []
+      let jobsArray = response.data.results || []
+
+      // Client-side filtering for fields not supported by API
+      const lc = (s?: string) => (s || '').toLowerCase()
+      if (currentFilters.location) {
+        const loc = lc(currentFilters.location)
+        jobsArray = jobsArray.filter(j =>
+          lc(j.country).includes(loc) ||
+          lc(j.region).includes(loc) ||
+          lc(j.company).includes(loc)
+        )
+      }
+      if (currentFilters.jobType) {
+        jobsArray = jobsArray.filter(j => lc(j.jobType) === lc(currentFilters.jobType))
+      }
+      if (currentFilters.category) {
+        jobsArray = jobsArray.filter(j => lc(j.category) === lc(currentFilters.category))
+      }
       
       if (pageNum === 1) {
         setJobs(jobsArray)
@@ -50,14 +80,23 @@ export function JobListImproved() {
   }
 
   useEffect(() => {
-    fetchJobs()
+    // Initial load
+    fetchJobs(1, filters)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    // Refetch when filters change
+    setPage(1)
+    fetchJobs(1, filters)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.keyword, filters.location, filters.jobType, filters.category])
 
   const loadMore = () => {
     if (!isUsingFallback) {
       const nextPage = page + 1
       setPage(nextPage)
-      fetchJobs(nextPage)
+      fetchJobs(nextPage, filters)
     }
   }
 
