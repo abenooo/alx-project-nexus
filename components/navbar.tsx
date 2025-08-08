@@ -28,10 +28,13 @@ interface UserProfile {
 }
 
 interface User {
-  id: number
+  id: string
+  name: string
   email: string
-  first_name: string
-  last_name: string
+  token?: string
+  // Optional fields from the profile
+  first_name?: string
+  last_name?: string
   profile?: UserProfile
 }
 
@@ -76,39 +79,38 @@ export function Navbar() {
       }
 
       try {
-        // First get the profile
-        const profileResponse = await apiClient.getProfile()
+        // Get the user's data using the getMe endpoint
+        const userResponse = await apiClient.getMe()
         
-        if (profileResponse.data) {
-          let resumeData = null
+        if (userResponse.data) {
+          // The getMe endpoint returns the user data directly
+          const userData = userResponse.data as User;
           
-          // Only try to get resume if profile exists
-          try {
-            const resumeResponse = await apiClient.getProfileResume()
-            if (resumeResponse.data) {
-              resumeData = resumeResponse.data.resume || null
-            }
-          } catch (resumeError) {
-            console.log('No resume found, continuing without it')
-          }
-          
-          // Combine profile and resume data
-          const userData = {
-            ...profileResponse.data,
-            resume: resumeData
+          // Transform the data to match our User interface
+          const user: User = {
+            id: userData.id,
+            name: userData.name,
+            email: userData.email,
+            // Include any token if present
+            ...(userData.token && { token: userData.token }),
+            // Map any other fields that might be needed
+            ...(userData.first_name && { first_name: userData.first_name }),
+            ...(userData.last_name && { last_name: userData.last_name }),
+            // Include profile if available
+            ...(userData.profile && { profile: userData.profile })
           };
           
           // Update the stored user data
-          localStorage.setItem('user', JSON.stringify(userData))
-          setUser(userData)
-        } else if (profileResponse.status === 401 || profileResponse.status === 403) {
+          localStorage.setItem('user', JSON.stringify(user));
+          setUser(user);
+        } else if (userResponse.status === 401 || userResponse.status === 403) {
           // Token is invalid, clear it
           console.log('Invalid token, clearing authentication')
           localStorage.removeItem('token')
           localStorage.removeItem('user')
           setUser(null)
         } else {
-          console.log('Profile fetch failed:', profileResponse.error)
+          console.log('User data fetch failed:', userResponse.error)
         }
       } catch (error) {
         console.error('Error in checkAuthStatus:', error)
@@ -184,9 +186,9 @@ export function Navbar() {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src="/placeholder.svg" alt={user.first_name} />
+                        <AvatarImage src="/placeholder.svg" alt={user.name} />
                         <AvatarFallback>
-                          {user.first_name?.[0] || 'U'}{user.last_name?.[0] || ''}
+                          {user.name.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
                         </AvatarFallback>
                       </Avatar>
                     </Button>
@@ -199,12 +201,12 @@ export function Navbar() {
                           alt={`${user.first_name} ${user.last_name}`} 
                         />
                         <AvatarFallback>
-                          {user.first_name?.[0]}{user.last_name?.[0]}
+                          {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col space-y-1 leading-none">
                         <p className="font-medium">
-                          {user.profile?.first_name || user.first_name} {user.profile?.last_name || user.last_name}
+                          {user.name}
                         </p>
                         <p className="w-[200px] truncate text-sm text-muted-foreground">
                           {user.profile?.job_title || 'No title'}
