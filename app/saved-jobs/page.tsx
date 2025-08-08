@@ -11,23 +11,12 @@ import {
   Heart, Trash2, ExternalLink, Building, MapPin, 
   DollarSign, Clock, Briefcase, Loader2, BookmarkX
 } from 'lucide-react'
-import Link from 'next/link'
-import { apiClient, type SavedJob } from '@/lib/api'
+import Link from 'next/link';
+import { JobCard } from '@/components/job-card';
+import { apiClient, type SavedJob, type Job } from '@/lib/api'
 
 interface SavedJobWithDetails extends SavedJob {
-  job_details?: {
-    id: number
-    title: string
-    company_name: string
-    location: string
-    salary: string
-    job_type: string
-    description: string
-    posted_at: string
-    category_name: string
-    industry: string
-    status: string
-  }
+  job_details?: Job
 }
 
 export default function SavedJobsPage() {
@@ -35,7 +24,7 @@ export default function SavedJobsPage() {
   const [savedJobs, setSavedJobs] = useState<SavedJobWithDetails[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [removingJob, setRemovingJob] = useState<number | null>(null)
+  
 
   useEffect(() => {
     // Check authentication
@@ -60,14 +49,16 @@ export default function SavedJobsPage() {
         const jobsWithDetails = await Promise.all(
           jobs.map(async (savedJob) => {
             try {
-              const jobResponse = await apiClient.getJob(savedJob.job)
+              // The API's getJob function expects a string ID, but savedJob.job is a number.
+              // This is a temporary workaround. In a real app, the API or the data model should be consistent.
+              const jobResponse = await apiClient.getJob(String(savedJob.job));
               return {
                 ...savedJob,
                 job_details: jobResponse.data
               }
             } catch (error) {
               console.error(`Error fetching details for job ${savedJob.job}:`, error)
-              return savedJob
+              return { ...savedJob, job_details: undefined }
             }
           })
         )
@@ -86,34 +77,9 @@ export default function SavedJobsPage() {
     }
   }
 
-  const handleRemoveJob = async (savedJobId: number) => {
-    setRemovingJob(savedJobId)
-    try {
-      const response = await apiClient.unsaveJob(savedJobId)
+  
 
-      if (response.status === 204 || !response.error) {
-        setSavedJobs(savedJobs.filter(job => job.id !== savedJobId))
-      } else {
-        console.error('Failed to remove saved job:', response.error)
-      }
-    } catch (error) {
-      console.error('Error removing saved job:', error)
-    } finally {
-      setRemovingJob(null)
-    }
-  }
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    
-    if (diffDays === 1) return '1 day ago'
-    if (diffDays < 7) return `${diffDays} days ago`
-    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
-    return `${Math.ceil(diffDays / 30)} months ago`
-  }
+  
 
   if (!apiClient.isAuthenticated()) {
     return (
@@ -168,4 +134,34 @@ export default function SavedJobsPage() {
             </div>
 
             {savedJobs.length === 0 ? (
-              <Card className="text-center py-12"></Card>
+              <Card className="text-center py-12">
+                <CardContent>
+                  <BookmarkX className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-800">No Saved Jobs</h3>
+                  <p className="text-gray-500 mt-2">You haven't saved any jobs yet. Start exploring and save jobs to view them here.</p>
+                  <Button asChild className="mt-6">
+                    <Link href="/">Find Jobs</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {savedJobs.map((savedJob) => (
+                  savedJob.job_details && (
+                    <JobCard 
+                      key={savedJob.id} 
+                      job={savedJob.job_details} 
+                      onUnsave={() => setSavedJobs(prev => prev.filter(j => j.id !== savedJob.id))}
+                      isSavedInitially={true}
+                      savedJobId={savedJob.id}
+                    />
+                  )
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}

@@ -8,14 +8,18 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { apiClient, Job } from '@/lib/api'
 
-interface JobCardProps {
-  job: Job
+export interface JobCardProps {
+  job: Job;
+  isSavedInitially?: boolean;
+  savedJobId?: number;
+  onUnsave?: (jobId: string) => void;
 }
 
-export function JobCard({ job }: JobCardProps) {
-  const [isSaved, setIsSaved] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [formattedDate, setFormattedDate] = useState('')
+export function JobCard({ job, isSavedInitially = false, savedJobId, onUnsave }: JobCardProps) {
+  const [isSaved, setIsSaved] = useState(isSavedInitially);
+  const [currentSavedJobId, setCurrentSavedJobId] = useState(savedJobId);
+  const [saving, setSaving] = useState(false);
+  const [formattedDate, setFormattedDate] = useState('');
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -33,20 +37,41 @@ export function JobCard({ job }: JobCardProps) {
     setFormattedDate(formatDate(job.createdAt))
   }, [job.createdAt])
 
-  const handleSaveJob = async () => {
-    // Check if user is authenticated
+  const handleToggleSave = async () => {
     if (!apiClient.isAuthenticated()) {
-      // Redirect to login or show login modal
-      window.location.href = '/login'
-      return
+      window.location.href = '/login';
+      return;
     }
 
-    setSaving(true)
-    // The save job functionality needs to be updated to handle string IDs (_id)
-    // For now, we'll log a message.
-    console.log('Save job functionality needs to be updated for string IDs.');
-    setSaving(false);
-  }
+    setSaving(true);
+    try {
+      if (isSaved) {
+        if (currentSavedJobId) {
+          const response = await apiClient.unsaveJob(currentSavedJobId);
+          if (response.status === 204 || !response.error) {
+            setIsSaved(false);
+            if (onUnsave) {
+              onUnsave(job._id);
+            }
+          } else {
+            console.error('Failed to unsave job:', response.error);
+          }
+        }
+      } else {
+        const response = await apiClient.saveJob(job._id);
+        if (response.data) {
+          setIsSaved(true);
+          setCurrentSavedJobId(response.data.id);
+        } else {
+          console.error('Failed to save job:', response.error);
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling save state:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Card className="hover:shadow-lg transition-shadow">
@@ -72,7 +97,7 @@ export function JobCard({ job }: JobCardProps) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleSaveJob}
+            onClick={handleToggleSave}
             disabled={saving}
             className="text-gray-400 hover:text-red-500"
           >
