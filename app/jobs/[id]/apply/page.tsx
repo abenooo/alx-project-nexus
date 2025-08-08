@@ -110,7 +110,7 @@ export default function JobApplicationPage() {
       if (response.data) {
         setSuccess(true);
         setTimeout(() => {
-          router.push('/applications');
+          router.push('/');
         }, 2000);
       } else if (response.status === 401 || response.status === 403) {
         setError('Please log in to apply for jobs');
@@ -168,13 +168,8 @@ export default function JobApplicationPage() {
               </p>
               <div className="flex gap-4 justify-center">
                 <Button asChild>
-                  <Link href="/applications">
-                    View My Applications
-                  </Link>
-                </Button>
-                <Button variant="outline" asChild>
                   <Link href="/">
-                    Browse More Jobs
+                    Go to Home
                   </Link>
                 </Button>
               </div>

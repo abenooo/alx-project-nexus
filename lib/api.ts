@@ -1,4 +1,4 @@
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://alx-project-nexus-backend.onrender.com/api';
+const BASE_URL = process.env.BASE_URL || 'https://alx-project-nexus-backend.onrender.com/api';
 
 
 interface ApiResponse<T = any> {
@@ -409,12 +409,32 @@ class ApiClient {
 
   async getApplications(page: number = 1): Promise<ApiResponse<{ results: JobApplication[]; next: string | null; count: number }>> {
     try {
-      const response = await fetch(`${this.baseUrl}/applications/?page=${page}`, {
+      const response = await fetch(`${this.baseUrl}/applications`, {
         method: 'GET',
         headers: this.getAuthHeaders(),
       })
 
-      return this.handleResponse(response)
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error fetching applications:', errorText);
+        return { 
+          error: `Failed to fetch applications: ${response.status} ${response.statusText}`,
+          status: response.status 
+        };
+      }
+
+      const applications = await response.json();
+      console.log('Applications response:', applications);
+      
+      // Backend returns applications directly as an array, so we wrap it in the expected format
+      return {
+        data: {
+          results: Array.isArray(applications) ? applications : [],
+          next: null,
+          count: Array.isArray(applications) ? applications.length : 0
+        },
+        status: response.status
+      };
     } catch (error) {
       console.error('Error fetching applications:', error);
       return { 
