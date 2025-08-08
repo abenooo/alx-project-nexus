@@ -13,7 +13,7 @@ import { Loader2 } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 
 interface Category {
-  id: number
+  id?: number
   category_name: string
 }
 
@@ -49,7 +49,9 @@ export default function PostJobPage() {
     try {
       const response = await apiClient.getCategories()
       if (response.data) {
-        setCategories(response.data.results || response.data)
+        const fetchedCategories = response.data.results || response.data;
+        const validCategories = fetchedCategories.filter(cat => cat.id != null);
+        setCategories(validCategories);
       }
     } catch (error) {
       console.error('Error fetching categories:', error)

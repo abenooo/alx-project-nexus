@@ -5,17 +5,12 @@ import { JobCard } from '@/components/job-card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2 } from 'lucide-react'
+import { Job } from '@/lib/api';
 
-interface Job {
-  id: number
-  title: string
-  company_name: string
-  location: string
-  salary: string
-  job_type: string
-  description: string
-  posted_at: string
-  category_name: string
+interface JobListProps {
+  initialJobs: Job[];
+  totalJobs: number;
+  filters: any;
   industry: string
 }
 
@@ -81,36 +76,7 @@ export function JobList() {
       
       setError(errorMessage)
       
-      // Set fallback data for development/testing
-      if (pageNum === 1 && jobs.length === 0) {
-        setJobs([
-          {
-            id: 1,
-            title: "Senior Software Engineer",
-            company_name: "Tech Corp",
-            location: "San Francisco, CA",
-            salary: "$120,000 - $160,000",
-            job_type: "full-time",
-            description: "We are looking for a senior software engineer to join our team...",
-            posted_at: new Date().toISOString(),
-            category_name: "Technology",
-            industry: "Software"
-          },
-          {
-            id: 2,
-            title: "Product Manager",
-            company_name: "Innovation Inc",
-            location: "New York, NY",
-            salary: "$100,000 - $140,000",
-            job_type: "full-time",
-            description: "Join our product team to drive innovation and growth...",
-            posted_at: new Date().toISOString(),
-            category_name: "Product",
-            industry: "Technology"
-          }
-        ])
-        setHasMore(false)
-      }
+      
     } finally {
       setLoading(false)
     }
@@ -162,7 +128,7 @@ export function JobList() {
       
       <div className="grid gap-6">
         {jobs.map((job) => (
-          <JobCard key={job.id} job={job} />
+          <JobCard key={job._id} job={job} />
         ))}
       </div>
       

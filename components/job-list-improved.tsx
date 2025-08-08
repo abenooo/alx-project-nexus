@@ -5,21 +5,8 @@ import { JobCard } from '@/components/job-card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Wifi, WifiOff, Info } from 'lucide-react'
-import { apiClient } from '@/lib/api'
+import { apiClient, Job } from '@/lib/api'
 import Link from 'next/link'
-
-interface Job {
-  id: number
-  title: string
-  company_name: string
-  location: string
-  salary: string
-  job_type: string
-  description: string
-  posted_at: string
-  category_name: string
-  industry: string
-}
 
 export function JobListImproved() {
   const [jobs, setJobs] = useState<Job[]>([])
@@ -134,7 +121,7 @@ export function JobListImproved() {
       
       <div className="grid gap-6">
         {jobs.map((job) => (
-          <JobCard key={job.id} job={job} />
+          <JobCard key={job._id} job={job} />
         ))}
       </div>
       

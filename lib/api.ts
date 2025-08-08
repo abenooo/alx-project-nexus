@@ -1,500 +1,516 @@
-const API_BASE_URL = 'https://mysite-z2xs.onrender.com/api'
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://alx-project-nexus-backend.onrender.com/api';
 
-interface ApiResponse<T> {
+
+interface ApiResponse<T = any> {
   data?: T
   error?: string
-  status: number
+  status?: number
   isFromFallback?: boolean
 }
 
-class ApiClient {
-  private baseUrl: string
-
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl
-  }
-
-  private async makeRequest<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<ApiResponse<T>> {
-    try {
-      const url = `${this.baseUrl}${endpoint}`
-      console.log(`API Request: ${options.method || 'GET'} ${url}`)
-
-      // Define headers with proper typing
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      }
-
-      // Add auth header if we have a token
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
-      }
-
-      const config: RequestInit = {
-        mode: 'cors',
-        headers: {
-          ...headers,
-          ...options.headers,
-        },
-        ...options,
-      }
-
-      const response = await fetch(url, config)
-      
-      console.log(`API Response: ${response.status} ${response.statusText}`)
-
-      if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
-        try {
-          const errorText = await response.text()
-          console.error('API Error Response:', errorText)
-          if (errorText) {
-            errorMessage = errorText
-          }
-        } catch (e) {
-          console.error('Could not read error response:', e)
-        }
-        
-        return {
-          error: errorMessage,
-          status: response.status
-        }
-      }
-
-      const data = await response.json()
-      console.log('API Success:', data)
-
-      return {
-        data,
-        status: response.status
-      }
-    } catch (error) {
-      console.error('Network Error:', error)
-      
-      return {
-        error: error instanceof Error ? error.message : 'Network error occurred',
-        status: 0
-      }
-    }
-  }
-
-  // Check if user is authenticated (has valid token)
-  isAuthenticated(): boolean {
-    if (typeof window === 'undefined') return false
-    const token = localStorage.getItem('token')
-    return !!token
-  }
-
-  // Jobs API - Always returns data, never throws
-  async getJobs(page: number = 1): Promise<ApiResponse<{
-    count: number
-    next: string | null
-    previous: string | null
-    results: any[]
-  }>> {
-    console.log(`Getting jobs for page ${page}`)
-    
-    try {
-      const response = await this.makeRequest<{
-        count: number
-        next: string | null
-        previous: string | null
-        results: any[]
-      }>(`/jobs/?page=${page}`)
-
-      // If successful, return the data
-      if (response.data) {
-        console.log('Successfully got jobs from API')
-        // Ensure we have a valid response structure
-        if (!response.data.results) {
-          response.data.results = []
-        }
-        return response
-      }
-
-      // If we have an error, log it but don't return fallback yet
-      if (response.error) {
-        console.error('Error getting jobs:', response.error)
-        // Only return fallback if it's not an auth error
-        if (response.status !== 401 && response.status !== 403) {
-          console.log('Non-auth error, returning fallback jobs')
-          return this.getFallbackJobs(page)
-        }
-        // For auth errors, return empty results
-        return {
-          data: {
-            count: 0,
-            next: null,
-            previous: null,
-            results: []
-          },
-          status: response.status,
-          error: response.error
-        }
-      }
-      
-      // If we get here, something unexpected happened
-      console.log('Unexpected response format, returning fallback jobs')
-      return this.getFallbackJobs(page)
-      
-    } catch (error) {
-      const errorStatus = (error as any)?.status || 500;
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch jobs';
-      
-      // Only return fallback if it's not an auth error
-      if (errorStatus !== 401 && errorStatus !== 403) {
-        return this.getFallbackJobs(page);
-      }
-      // For auth errors, return empty results
-      return {
-        data: {
-          count: 0,
-          next: null,
-          previous: null,
-          results: []
-        },
-        status: errorStatus,
-        error: errorMessage
-      };
-    }
-  }
-
-  private getFallbackJobs(page: number = 1): ApiResponse<{
-    count: number
-    next: string | null
-    previous: string | null
-    results: any[]
-  }> {
-    return {
-      data: {
-        count: fallbackJobs.length,
-        next: null,
-        previous: null,
-        results: page === 1 ? fallbackJobs : []
-      },
-      status: 200,
-      isFromFallback: true
-    }
-  }
-
-  async getJob(id: number): Promise<ApiResponse<any>> {
-    try {
-      const response = await this.makeRequest(`/jobs/${id}/`)
-      
-      if (response.data && response.status === 200) {
-        return response
-      }
-
-      // Return fallback job if available
-      const fallbackJob = fallbackJobs.find(job => job.id === id)
-      if (fallbackJob) {
-        return {
-          data: fallbackJob,
-          status: 200,
-          isFromFallback: true
-        }
-      }
-
-      return {
-        error: 'Job not found',
-        status: 404
-      }
-    } catch (error) {
-      console.error('Exception in getJob:', error)
-      
-      // Try to return fallback job
-      const fallbackJob = fallbackJobs.find(job => job.id === id)
-      if (fallbackJob) {
-        return {
-          data: fallbackJob,
-          status: 200,
-          isFromFallback: true
-        }
-      }
-
-      return {
-        error: 'Job not found',
-        status: 404
-      }
-    }
-  }
-
-  async createJob(jobData: any): Promise<ApiResponse<any>> {
-    try {
-      return await this.makeRequest('/jobs/create/', {
-        method: 'POST',
-        body: JSON.stringify(jobData)
-      })
-    } catch (error) {
-      console.error('Exception in createJob:', error)
-      return {
-        error: 'Failed to create job',
-        status: 500
-      }
-    }
-  }
-
-  // Auth API
-  async login(credentials: { email: string; password: string }): Promise<ApiResponse<any>> {
-    try {
-      const response = await this.makeRequest('/users/login/', {
-        method: 'POST',
-        body: JSON.stringify(credentials)
-      })
-
-      // If we got a successful response with data, return it as is
-      if (response.data) {
-        return response
-      }
-
-      // If we didn't get data but have an error, return that
-      if (response.error) {
-        return response
-      }
-
-      // If we got here, something unexpected happened
-      return {
-        error: 'Invalid response format from server',
-        status: 500
-      }
-    } catch (error) {
-      console.error('Exception in login:', error)
-      return {
-        error: error instanceof Error ? error.message : 'Login failed',
-        status: 500
-      }
-    }
-  }
-
-  async register(userData: any): Promise<ApiResponse<any>> {
-    try {
-      return await this.makeRequest('/users/register/', {
-        method: 'POST',
-        body: JSON.stringify(userData)
-      })
-    } catch (error) {
-      console.error('Exception in register:', error)
-      return {
-        error: 'Registration failed',
-        status: 500
-      }
-    }
-  }
-
-  async getProfile(): Promise<ApiResponse<any>> {
-    // Only call if we have a token
-    if (!this.isAuthenticated()) {
-      return {
-        error: 'No authentication token',
-        status: 401
-      }
-    }
-
-    try {
-      return await this.makeRequest('/users/profile/status/')
-    } catch (error) {
-      console.error('Exception in getProfile:', error)
-      return {
-        error: 'Failed to get profile',
-        status: 500
-      }
-    }
-  }
-
-  async getProfileResume(): Promise<ApiResponse<any>> {
-    if (!this.isAuthenticated()) {
-      return {
-        error: 'No authentication token',
-        status: 401
-      }
-    }
-
-    try {
-      return await this.makeRequest('/users/profile/resume/')
-    } catch (error) {
-      console.error('Exception in getProfileResume:', error)
-      return {
-        error: 'Failed to get profile resume',
-        status: 500
-      }
-    }
-  }
-
-  async logout(): Promise<ApiResponse<any>> {
-    try {
-      return await this.makeRequest('/users/logout/', {
-        method: 'POST'
-      })
-    } catch (error) {
-      console.error('Exception in logout:', error)
-      return {
-        error: 'Logout failed',
-        status: 500
-      }
-    }
-  }
-
-  // Categories API - Always returns data
-  async getCategories(): Promise<ApiResponse<{ results: any[] }>> {
-    try {
-      const response = await this.makeRequest<{ results: any[] }>('/categories/')
-      
-      if (response.data && response.status === 200) {
-        return response
-      }
-
-      // Return fallback categories
-      return this.getFallbackCategories()
-      
-    } catch (error) {
-      console.error('Exception in getCategories, returning fallback:', error)
-      return this.getFallbackCategories()
-    }
-  }
-
-  private getFallbackCategories(): ApiResponse<{ results: any[] }> {
-    return {
-      data: {
-        results: fallbackCategories
-      },
-      status: 200,
-      isFromFallback: true
-    }
-  }
-
-  // Saved Jobs API
-  async saveJob(jobId: number): Promise<ApiResponse<any>> {
-    try {
-      return await this.makeRequest('/saved-jobs/create/', {
-        method: 'POST',
-        body: JSON.stringify({ job: jobId })
-      })
-    } catch (error) {
-      console.error('Exception in saveJob:', error)
-      return {
-        error: 'Failed to save job',
-        status: 500
-      }
-    }
-  }
+interface JobFilters {
+  search?: string
+  ordering?: string
+  page?: number
+  size?: number
 }
 
-export const apiClient = new ApiClient(API_BASE_URL)
+interface Job {
+  _id: string;
+  title: string;
+  description: string;
+  company: string;
+  country: string;
+  region: string;
+  jobType: string;
+  category: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  salary?: number;
+  views?: number;
+}
 
-// Fallback categories
-const fallbackCategories = [
-  { id: 1, category_name: 'Technology' },
-  { id: 2, category_name: 'Marketing' },
-  { id: 3, category_name: 'Design' },
-  { id: 4, category_name: 'Sales' },
-  { id: 5, category_name: 'Finance' },
-  { id: 6, category_name: 'Healthcare' },
-  { id: 7, category_name: 'Education' },
-  { id: 8, category_name: 'Engineering' },
-  { id: 9, category_name: 'Customer Service' },
-  { id: 10, category_name: 'Operations' }
-]
+interface JobApplication {
+  id?: number
+  applicant?: string
+  status: string
+  resume?: string
+  cover_letter: string
+  applied_at?: string
+  job: number
+}
 
-// Fallback data for when API is unavailable or requires authentication
-export const fallbackJobs = [
-  {
-    id: 1,
-    title: "Senior Software Engineer",
-    company_name: "Tech Corp",
-    location: "San Francisco, CA",
-    salary: "$120,000 - $160,000",
-    job_type: "full-time",
-    description: "We are looking for a senior software engineer to join our team and help build scalable web applications. You'll work with React, Node.js, and cloud technologies to create innovative solutions that serve millions of users worldwide.",
-    posted_at: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-    category_name: "Technology",
-    industry: "Software"
-  },
-  {
-    id: 2,
-    title: "Product Manager",
-    company_name: "Innovation Inc",
-    location: "New York, NY",
-    salary: "$100,000 - $140,000",
-    job_type: "full-time",
-    description: "Join our product team to drive innovation and growth. You'll be responsible for product strategy, roadmap planning, and cross-functional collaboration with engineering and design teams to deliver exceptional user experiences.",
-    posted_at: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
-    category_name: "Product",
-    industry: "Technology"
-  },
-  {
-    id: 3,
-    title: "UX Designer",
-    company_name: "Design Studio",
-    location: "Los Angeles, CA",
-    salary: "$80,000 - $110,000",
-    job_type: "full-time",
-    description: "We're seeking a talented UX designer to create intuitive and engaging user experiences for our digital products. Experience with Figma, user research, prototyping, and design systems required.",
-    posted_at: new Date(Date.now() - 259200000).toISOString(), // 3 days ago
-    category_name: "Design",
-    industry: "Creative"
-  },
-  {
-    id: 4,
-    title: "Data Scientist",
-    company_name: "Analytics Pro",
-    location: "Austin, TX",
-    salary: "$110,000 - $150,000",
-    job_type: "full-time",
-    description: "Join our data science team to extract insights from large datasets and build predictive models using Python and machine learning. Experience with SQL, pandas, scikit-learn, and data visualization tools preferred.",
-    posted_at: new Date(Date.now() - 345600000).toISOString(), // 4 days ago
-    category_name: "Data Science",
-    industry: "Technology"
-  },
-  {
-    id: 5,
-    title: "Marketing Manager",
-    company_name: "Growth Co",
-    location: "Chicago, IL",
-    salary: "$70,000 - $95,000",
-    job_type: "full-time",
-    description: "Lead our marketing efforts across digital channels. Experience with SEO, content marketing, social media, email marketing, and marketing automation tools required. Help us scale our customer acquisition and retention strategies.",
-    posted_at: new Date(Date.now() - 432000000).toISOString(), // 5 days ago
-    category_name: "Marketing",
-    industry: "Marketing"
-  },
-  {
-    id: 6,
-    title: "DevOps Engineer",
-    company_name: "Cloud Systems",
-    location: "Seattle, WA",
-    salary: "$105,000 - $135,000",
-    job_type: "full-time",
-    description: "We're looking for a DevOps engineer to help us build and maintain our cloud infrastructure. Experience with AWS, Docker, Kubernetes, Terraform, and CI/CD pipelines required. Join our mission to scale reliable systems.",
-    posted_at: new Date(Date.now() - 518400000).toISOString(), // 6 days ago
-    category_name: "Technology",
-    industry: "Cloud Computing"
-  },
-  {
-    id: 7,
-    title: "Sales Representative",
-    company_name: "SalesPro Inc",
-    location: "Miami, FL",
-    salary: "$60,000 - $90,000 + Commission",
-    job_type: "full-time",
-    description: "Join our dynamic sales team and help drive revenue growth. We're looking for motivated individuals with excellent communication skills and a passion for building relationships with clients in the B2B space.",
-    posted_at: new Date(Date.now() - 604800000).toISOString(), // 7 days ago
-    category_name: "Sales",
-    industry: "Sales"
-  },
-  {
-    id: 8,
-    title: "Financial Analyst",
-    company_name: "Finance Plus",
-    location: "Boston, MA",
-    salary: "$75,000 - $95,000",
-    job_type: "full-time",
-    description: "We're seeking a detail-oriented financial analyst to join our team. You'll be responsible for financial modeling, budgeting, forecasting, and providing insights to support strategic business decisions and growth initiatives.",
-    posted_at: new Date(Date.now() - 691200000).toISOString(), // 8 days ago
-    category_name: "Finance",
-    industry: "Finance"
+interface SavedJob {
+  id?: number
+  job: number
+  job_title?: string
+  saved_at?: string
+}
+
+interface UserProfile {
+  id?: number
+  first_name: string
+  last_name: string
+  country: string
+  phone_number?: string
+  job_title?: string
+  gender?: string
+  profile_picture?: string
+  bio?: string
+  resume?: string
+  linkedin?: string
+  skills?: string
+  portfolio?: string
+  profile_completed?: boolean
+  user?: number
+}
+
+interface Category {
+  id?: number
+  category_name: string
+}
+
+class ApiClient {
+  private baseUrl = BASE_URL
+
+  // Helper method to get auth headers
+  private getAuthHeaders(): HeadersInit {
+    const token = this.getToken()
+    return {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+    }
   }
-]
+
+  // Helper method to handle API responses
+  private async handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
+    try {
+      if (response.ok) {
+        const data = await response.json()
+        return { data, status: response.status }
+      } else {
+        const errorData = await response.text()
+        let errorMessage = `HTTP ${response.status}`
+        
+        try {
+          const errorJson = JSON.parse(errorData)
+          if (errorJson.detail) {
+            errorMessage = errorJson.detail
+          } else if (errorJson.message) {
+            errorMessage = errorJson.message
+          } else if (typeof errorJson === 'string') {
+            errorMessage = errorJson
+          }
+        } catch {
+          errorMessage = errorData || response.statusText
+        }
+
+        return { error: errorMessage, status: response.status }
+      }
+    } catch (error) {
+      return { error: 'Network error occurred', status: 0 }
+    }
+  }
+
+  // Token management
+  getToken(): string | null {
+    if (typeof window === 'undefined') return null
+    return localStorage.getItem('token')
+  }
+
+  isAuthenticated(): boolean {
+    return !!this.getToken()
+  }
+
+  // Auth endpoints
+  async login(credentials: { email: string; password: string }): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/users/login/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(credentials),
+      })
+
+      return this.handleResponse(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  async register(userData: {
+    email: string
+    first_name: string
+    last_name: string
+    password: string
+    confirm_password: string
+  }): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/users/register/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      })
+
+      return this.handleResponse(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  async logout(): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/users/logout/`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+      })
+
+      return this.handleResponse(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  // Profile endpoints
+  async getProfile(): Promise<ApiResponse<UserProfile>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/users/profile/update/`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      })
+
+      return this.handleResponse<UserProfile>(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  async updateProfile(profileData: Partial<UserProfile>): Promise<ApiResponse<UserProfile>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/users/profile/update/`, {
+        method: 'PATCH',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(profileData),
+      })
+
+      return this.handleResponse<UserProfile>(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  async getProfileResume(): Promise<ApiResponse> {
+    try {
+      const response = await this.makeAuthenticatedRequest('/users/profile/resume/')
+
+      return this.handleResponse(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  async getProfileStatus(): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/users/profile/status/`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      })
+
+      return this.handleResponse(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  async requestRole(): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/users/request-role/`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+      })
+
+      return this.handleResponse(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  // Job endpoints
+  private async makeAuthenticatedRequest(endpoint: string, options: RequestInit = {}): Promise<Response> {
+    const defaultOptions: RequestInit = {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+    };
+
+    const mergedOptions: RequestInit = {
+      ...defaultOptions,
+      ...options,
+      headers: {
+        ...defaultOptions.headers,
+        ...options.headers,
+      },
+    };
+
+    return fetch(`${this.baseUrl}${endpoint}`, mergedOptions);
+  }
+
+  async getJobs(page: number = 1, filters?: JobFilters): Promise<ApiResponse<{ results: Job[]; next: string | null; count: number }>> {
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        ...(filters?.search && { search: filters.search }),
+        ...(filters?.ordering && { ordering: filters.ordering }),
+        ...(filters?.size && { size: filters.size.toString() }),
+      });
+
+      const response = await fetch(`${this.baseUrl}/jobs?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorResult = await this.handleResponse(response);
+        return { ...errorResult, data: { results: [], next: null, count: 0 } };
+      }
+
+      const jobs: Job[] = await response.json();
+      
+      return {
+        data: {
+          results: jobs,
+          next: null, // Assuming the backend does not provide pagination info in this format
+          count: jobs.length,
+        },
+        status: response.status,
+      };
+    } catch (error) {
+      return { error: 'Network error occurred' };
+    }
+  }
+
+  async getJob(id: string): Promise<ApiResponse<Job>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/jobs/${id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      })
+
+      return this.handleResponse<Job>(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  async createJob(jobData: Omit<Job, 'id' | 'posted_by' | 'category' | 'posted_at' | 'view_count' | 'status'>): Promise<ApiResponse<Job>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/jobs/create/`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(jobData),
+      })
+
+      return this.handleResponse<Job>(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  async updateJob(id: number, jobData: Partial<Job>): Promise<ApiResponse<Job>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/jobs/${id}/update/`, {
+        method: 'PATCH',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(jobData),
+      })
+
+      return this.handleResponse<Job>(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  async deleteJob(id: number): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/jobs/${id}/delete/`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders(),
+      })
+
+      return this.handleResponse(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  // Job Application endpoints
+  async applyToJob(jobId: number, applicationData: Omit<JobApplication, 'id' | 'applicant' | 'applied_at' | 'resume'>): Promise<ApiResponse<JobApplication>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/jobs/${jobId}/apply/`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(applicationData),
+      })
+
+      return this.handleResponse<JobApplication>(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  async getApplications(page: number = 1): Promise<ApiResponse<{ results: JobApplication[]; next: string | null; count: number }>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/applications/recruiter/?page=${page}`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      })
+
+      return this.handleResponse(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  async updateApplication(id: number, applicationData: Partial<JobApplication>): Promise<ApiResponse<JobApplication>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/applications/${id}/update/`, {
+        method: 'PATCH',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(applicationData),
+      })
+
+      return this.handleResponse<JobApplication>(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  async deleteApplication(id: number): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/applications/${id}/delete/`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders(),
+      })
+
+      return this.handleResponse(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  // Saved Jobs endpoints
+  async getSavedJobs(page: number = 1): Promise<ApiResponse<{ results: SavedJob[]; next: string | null; count: number }>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/saved-jobs/?page=${page}`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      })
+
+      return this.handleResponse(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  async saveJob(jobId: string): Promise<ApiResponse<SavedJob>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/saved-jobs/create/`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({ job: jobId }),
+      })
+
+      return this.handleResponse<SavedJob>(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  async unsaveJob(id: number): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/saved-jobs/${id}/delete/`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders(),
+      })
+
+      return this.handleResponse(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  // Categories endpoints
+  async getCategories(): Promise<ApiResponse<{ results: Category[]; next: string | null; count: number }>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/categories/`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      })
+
+      return this.handleResponse(response);
+    } catch (error) {
+      return { error: 'Network error occurred' };
+    }
+  }
+
+  async createCategory(categoryData: Omit<Category, 'id'>): Promise<ApiResponse<Category>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/categories/create/`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(categoryData),
+      })
+
+      return this.handleResponse<Category>(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  async updateCategory(id: number, categoryData: Partial<Category>): Promise<ApiResponse<Category>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/categories/${id}/update/`, {
+        method: 'PATCH',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(categoryData),
+      })
+
+      return this.handleResponse<Category>(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+  async deleteCategory(id: number): Promise<ApiResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/categories/${id}/delete/`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders(),
+      })
+
+      return this.handleResponse(response)
+    } catch (error) {
+      return { error: 'Network error occurred' }
+    }
+  }
+
+
+}
+
+export const apiClient = new ApiClient()
+export type { Job, JobApplication, SavedJob, UserProfile, Category, JobFilters }
