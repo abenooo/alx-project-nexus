@@ -175,13 +175,6 @@ export function Navbar() {
               <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse" />
             ) : user ? (
               <>
-                <Button variant="outline" size="sm" asChild>
-                  <Link href="/post-job">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Post Job
-                  </Link>
-                </Button>
-                
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-8 w-8 rounded-full">
