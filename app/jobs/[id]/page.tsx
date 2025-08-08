@@ -18,7 +18,8 @@ import { apiClient, type Job } from '@/lib/api'
 export default function JobDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const jobId = params.id as string
+  // Ensure jobId is treated as a string
+  const jobId = typeof params.id === 'string' ? params.id : ''
   
   const [job, setJob] = useState<Job | null>(null)
   const [loading, setLoading] = useState(true)

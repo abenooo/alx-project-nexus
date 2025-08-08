@@ -29,16 +29,23 @@ interface Job {
   updatedAt: string;
   salary?: number;
   views?: number;
+  expiresAt?: string;
 }
 
 interface JobApplication {
-  id?: number
-  applicant?: string
-  status: string
-  resume?: string
-  cover_letter: string
-  applied_at?: string
-  job: number
+  _id?: string;
+  user: string;
+  job: string;
+  jobId?: string;
+  coverLetter: string;
+  status: string;
+  applied_at?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  __v?: number;
+  resume?: string;
+  id?: string;
+  applicant?: string;
 }
 
 interface SavedJob {
@@ -47,17 +54,18 @@ interface SavedJob {
   job_title?: string
   saved_at?: string
 }
-
 interface User {
   id: string;
   name: string;
   email: string;
+  country?: string; 
 }
 
 interface UserProfile {
   id?: number
   first_name: string
   last_name: string
+  email?: string
   country: string
   phone_number?: string
   job_title?: string
@@ -80,7 +88,6 @@ interface Category {
 class ApiClient {
   private baseUrl = BASE_URL
 
-  // Helper method to get auth headers
   private getAuthHeaders(): HeadersInit {
     const token = this.getToken();
     console.log('Current auth token:', token ? 'Token exists' : 'No token found');
@@ -98,7 +105,6 @@ class ApiClient {
     return headers;
   }
 
-  // Helper method to handle API responses
   private async handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
     try {
       if (response.ok) {
@@ -128,7 +134,6 @@ class ApiClient {
     }
   }
 
-  // Token management
   getToken(): string | null {
     if (typeof window === 'undefined') return null
     return localStorage.getItem('token')
@@ -138,7 +143,6 @@ class ApiClient {
     return !!this.getToken()
   }
 
-  // Auth endpoints
   async login(credentials: { email: string; password: string }): Promise<ApiResponse<{ user: User & { token: string } }>> {
     try {
       const response = await fetch(`${this.baseUrl}/auth/login`, {
@@ -190,7 +194,6 @@ class ApiClient {
     }
   }
 
-  // Profile endpoints
   async getMe(): Promise<ApiResponse<User>> {
     try {
       const response = await fetch(`${this.baseUrl}/auth/me`, {
@@ -368,17 +371,39 @@ class ApiClient {
   }
 
   // Job Application endpoints
-  async applyToJob(jobId: number, applicationData: Omit<JobApplication, 'id' | 'applicant' | 'applied_at' | 'resume'>): Promise<ApiResponse<JobApplication>> {
+  async applyToJob(jobId: string, applicationData: { jobId: string; coverLetter: string; status: string }): Promise<ApiResponse<JobApplication>> {
     try {
-      const response = await fetch(`${this.baseUrl}/jobs/${jobId}/apply/`, {
+      const endpoint = `${this.baseUrl.replace(/\/$/, '')}/applications`;
+      const response = await fetch(endpoint, {
         method: 'POST',
-        headers: this.getAuthHeaders(),
-        body: JSON.stringify(applicationData),
-      })
+        headers: {
+          'Content-Type': 'application/json',
+          ...this.getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          jobId: jobId,
+          coverLetter: applicationData.coverLetter,
+        }),
+      });
 
-      return this.handleResponse<JobApplication>(response)
+      console.log('Apply job response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error applying to job:', errorText);
+        return { 
+          error: `Failed to apply to job: ${response.status} ${response.statusText}`,
+          status: response.status 
+        };
+      }
+
+      return this.handleResponse<JobApplication>(response);
     } catch (error) {
-      return { error: 'Network error occurred' }
+      console.error('Error applying to job:', error);
+      return { 
+        error: error instanceof Error ? error.message : 'Network error occurred',
+        status: 0
+      };
     }
   }
 

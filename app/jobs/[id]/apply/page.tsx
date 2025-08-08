@@ -20,7 +20,16 @@ import { apiClient, type Job, type UserProfile } from '@/lib/api'
 export default function JobApplicationPage() {
   const params = useParams()
   const router = useRouter()
-  const jobId = parseInt(params.id as string)
+  // Ensure we get the full ID from the URL parameters
+  const jobId = Array.isArray(params.id) ? params.id[0] : params.id || ''
+  
+  // Validate the job ID format
+  useEffect(() => {
+    if (jobId && !/^[0-9a-fA-F]{24}$/.test(jobId)) {
+      setError('Invalid job ID format')
+      router.push('/jobs')
+    }
+  }, [jobId, router])
   
   const [job, setJob] = useState<Job | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
@@ -56,34 +65,33 @@ export default function JobApplicationPage() {
       console.error('Error fetching job:', error)
     }
   }
-
   const fetchProfile = async () => {
     try {
-      const response = await apiClient.getProfile()
+      const response = await apiClient.getMe();
       
       if (response.data) {
-        setProfile(response.data)
+        // Transform the data to match UserProfile
+        const userProfile: UserProfile = {
+          first_name: response.data.name || response.data.name?.split(' ')[0] || '',
+          last_name: response.data.email || response.data.name?.split(' ')[1] || '',
+          country: response.data.country || '',
+          // ... mapother fields as needed
+        };
+        setProfile(userProfile);
       } else if (response.status === 401 || response.status === 403) {
-        router.push('/login')
-        return
-      } else {
-        setError('Please complete your profile before applying')
+        router.push('/login');
       }
     } catch (error) {
-      console.error('Error fetching profile:', error)
+      console.error('Error fetching profile:', error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
+ 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!profile?.profile_completed) {
-      setError('Please complete your profile before applying to jobs')
-      return
-    }
-
     if (!coverLetter.trim()) {
       setError('Please provide a cover letter')
       return
@@ -94,27 +102,28 @@ export default function JobApplicationPage() {
 
     try {
       const response = await apiClient.applyToJob(jobId, {
-        cover_letter: coverLetter,
-        job: jobId,
-        status: 'pending'
-      })
+        jobId: jobId,
+        coverLetter: coverLetter,
+        status: 'submitted'
+      });
 
       if (response.data) {
-        setSuccess(true)
+        setSuccess(true);
         setTimeout(() => {
-          router.push('/applications')
-        }, 2000)
+          router.push('/applications');
+        }, 2000);
       } else if (response.status === 401 || response.status === 403) {
-        setError('Please log in to apply for jobs')
-        router.push('/login')
+        setError('Please log in to apply for jobs');
+        router.push('/login');
       } else {
-        setError(response.error || 'Failed to submit application. Please try again.')
+        setError(response.error || 'Failed to submit application. Please try again.');
+        console.error('Application error:', response);
       }
     } catch (error) {
-      setError('Network error. Please try again.')
-      console.error('Application error:', error)
+      setError('Network error. Please try again.');
+      console.error('Application error:', error);
     } finally {
-      setApplying(false)
+      setApplying(false);
     }
   }
 
@@ -154,7 +163,7 @@ export default function JobApplicationPage() {
                 Application Submitted Successfully!
               </h1>
               <p className="text-gray-600 mb-6">
-                Your application for {job?.title} at {job?.company_name} has been submitted.
+                Your application for {job?.title} at {job?.company} has been submitted.
                 We'll notify you about the status of your application.
               </p>
               <div className="flex gap-4 justify-center">
@@ -239,55 +248,15 @@ export default function JobApplicationPage() {
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  {/* Profile Summary */}
+                  {/* Profile Info */}
                   <div className="bg-gray-50 rounded-lg p-4">
-                    <h3 className="font-semibold mb-3">Your Profile</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-600">Name:</span>
-                        <span className="ml-2 font-medium">
-                          {profile?.first_name} {profile?.last_name}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Job Title:</span>
-                        <span className="ml-2 font-medium">
-                          {profile?.job_title || 'Not specified'}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Location:</span>
-                        <span className="ml-2 font-medium">
-                          {profile?.country || 'Not specified'}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Resume:</span>
-                        <span className="ml-2">
-                          {profile?.resume ? (
-                            <Badge variant="secondary" className="text-xs">
-                              <FileText className="h-3 w-3 mr-1" />
-                              Uploaded
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-xs">
-                              Not uploaded
-                            </Badge>
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {!profile?.profile_completed && (
-                      <Alert className="mt-4">
-                        <AlertDescription>
-                          Your profile is incomplete. Complete your profile to improve your application.
-                          <Button variant="outline" size="sm" className="ml-4" asChild>
-                            <Link href="/profile">Complete Profile</Link>
-                          </Button>
-                        </AlertDescription>
-                      </Alert>
-                    )}
+                    <h3 className="font-semibold mb-2">Your Profile</h3>
+                    <p className="text-sm text-gray-600 mb-3">
+                      {profile?.first_name} {profile?.last_name} • {profile?.email}
+                    </p>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href="/profile">View Full Profile</Link>
+                    </Button>
                   </div>
 
                   {/* Cover Letter */}
@@ -312,24 +281,13 @@ export default function JobApplicationPage() {
                     </div>
                   </div>
 
-                  {/* Resume Upload Reminder */}
-                  {!profile?.resume && (
-                    <Alert>
-                      <Upload className="h-4 w-4" />
-                      <AlertDescription>
-                        Consider uploading your resume to strengthen your application.
-                        <Button variant="outline" size="sm" className="ml-4" asChild>
-                          <Link href="/profile">Upload Resume</Link>
-                        </Button>
-                      </AlertDescription>
-                    </Alert>
-                  )}
+
 
                   {/* Submit Button */}
                   <div className="flex gap-4 pt-4">
                     <Button
                       type="submit"
-                      disabled={applying || !profile?.profile_completed}
+                      disabled={applying}
                       className="flex-1"
                     >
                       {applying ? (
@@ -365,11 +323,11 @@ export default function JobApplicationPage() {
                     <h3 className="font-semibold text-lg mb-1">{job.title}</h3>
                     <div className="flex items-center text-gray-600 mb-2">
                       <Building className="h-4 w-4 mr-1" />
-                      <span>{job.company_name}</span>
+                      <span>{job.company}</span>
                     </div>
                     <div className="flex items-center text-gray-500 text-sm">
                       <MapPin className="h-4 w-4 mr-1" />
-                      <span>{job.location}</span>
+                      <span>{job.region}</span>
                     </div>
                   </div>
 
@@ -379,18 +337,18 @@ export default function JobApplicationPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">{job.job_type}</Badge>
-                    <Badge variant="outline">{job.category_name}</Badge>
+                    <Badge variant="secondary">{job.jobType}</Badge>
+                    <Badge variant="outline">{job.category}</Badge>
                   </div>
 
                   <div className="pt-4 border-t">
                     <div className="flex items-center text-gray-500 text-sm mb-2">
                       <Clock className="h-4 w-4 mr-1" />
-                      <span>Posted {getTimeAgo(job.posted_at)}</span>
+                      <span>Posted {getTimeAgo(job.createdAt)}</span>
                     </div>
-                    {job.expires_at && (
+                    {job.expiresAt && (
                       <div className="text-sm text-amber-600">
-                        Application deadline: {new Date(job.expires_at).toLocaleDateString()}
+                        Application deadline: {new Date(job.expiresAt).toLocaleDateString()}
                       </div>
                     )}
                   </div>
